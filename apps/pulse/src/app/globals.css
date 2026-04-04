@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Dark-mode only palette — cyberpunk trading terminal */
+    --background: 240 15% 5%;        /* #0a0a0f */
+    --foreground: 240 5% 90%;        /* #e4e4e7 */
+
+    --card: 240 15% 9%;              /* #12121a */
+    --card-foreground: 240 5% 90%;
+
+    --popover: 240 15% 9%;
+    --popover-foreground: 240 5% 90%;
+
+    --primary: 189 94% 43%;          /* #06b6d4 cyan */
+    --primary-foreground: 240 15% 5%;
+
+    --secondary: 240 6% 15%;
+    --secondary-foreground: 240 5% 90%;
+
+    --muted: 240 6% 15%;             /* #27272a */
+    --muted-foreground: 240 5% 55%;  /* #71717a */
+
+    --accent: 189 94% 43%;
+    --accent-foreground: 240 15% 5%;
+
+    --destructive: 351 89% 61%;      /* #f43f5e rose */
+    --destructive-foreground: 0 0% 98%;
+
+    --success: 158 84% 39%;          /* #10b981 emerald */
+    --success-foreground: 0 0% 98%;
+
+    --warning: 38 92% 50%;           /* #f59e0b amber */
+    --warning-foreground: 240 15% 5%;
+
+    --border: 240 6% 16%;            /* #27272a */
+    --input: 240 6% 16%;
+    --ring: 189 94% 43%;
+
+    --radius: 0.5rem;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-feature-settings: 'rlig' 1, 'calt' 1, 'ss01' 1;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Subtle grid backdrop */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(hsl(var(--border) / 0.25) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.25) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: radial-gradient(ellipse at top, black 30%, transparent 75%);
+    z-index: 0;
+  }
+
+  #__next, main {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+@layer utilities {
+  .text-long {
+    color: hsl(var(--success));
+  }
+  .text-short {
+    color: hsl(var(--destructive));
+  }
+  .text-neutral {
+    color: hsl(var(--primary));
+  }
+  .bg-long-soft {
+    background-color: hsl(var(--success) / 0.12);
+  }
+  .bg-short-soft {
+    background-color: hsl(var(--destructive) / 0.12);
+  }
+  .bg-neutral-soft {
+    background-color: hsl(var(--primary) / 0.12);
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground));
+  }
+}

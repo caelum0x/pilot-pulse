@@ -1,0 +1,24 @@
+.env
+.env.local
+.env.*.local
+.DS_Store
+node_modules/
+dist/
+build/
+.next/
+out/
+*.log
+.venv/
+__pycache__/
+*.pyc
+.vscode/
+.idea/
+*.tsbuildinfo
+coverage/
+
+# Vendor — Pacifica upstream repos (we don't commit them into our git)
+vendor/
+
+# Pilot state snapshot — persisted across restarts, NOT tracked.
+.pilot-state.json
+.pilot-state.json.tmp
