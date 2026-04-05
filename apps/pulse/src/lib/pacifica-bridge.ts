@@ -262,6 +262,11 @@ export class PacificaBridge {
     this.callbacks.onStatus?.('closed');
   }
 
+  /** Update the minimum USD threshold for whale event emission. */
+  setMinWhaleSizeUsd(value: number): void {
+    (this.config as { minWhaleSizeUsd: number }).minWhaleSizeUsd = value;
+  }
+
   /** Update the set of focused symbols and re-subscribe. */
   setFocusedSymbols(symbols: readonly string[]): void {
     const next = [...symbols];

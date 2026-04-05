@@ -7,10 +7,10 @@ Built for **Track 2 (Analytics & Data)** of the Pacifica Hackathon.
 
 ## What it shows
 
-- **Markets Overview** — top pairs with mark price, 24h change, funding, open interest
-- **Orderbook Imbalance** — live depth histogram, imbalance ratio, spread, 60s sparkline
-- **Whale Watcher** — timeline of large position events (OPEN / ADD / REDUCE / CLOSE)
-- **Fusion Signals** — cross-correlated signals like _"BTC: High-conviction LONG — whale opened $2.4M + bid imbalance 0.31 sustained 6m"_
+- **Markets Overview** — all pairs with mark price, 24h change, funding rate, open interest; click any row to focus the orderbook panel on that symbol
+- **Orderbook Imbalance** — live depth histogram for the focused symbol, bid/ask pressure bars, imbalance ratio, spread (bps), and a 60-second sparkline
+- **Whale Watcher** — real-time event timeline of large position changes (OPEN / ADD / REDUCE / CLOSE) across a curated address list, with address, symbol, direction, and USD size
+- **Fusion Signals** — the killer feature: whale events cross-referenced with live orderbook imbalance. When a whale opens a LONG *and* the book shows sustained bid-side pressure → HIGH/MED/LOW conviction signal with narrative description
 
 ## Run it
 
@@ -27,19 +27,35 @@ Build:
 pnpm -F @pacifica-hack/pulse build
 ```
 
-## Mock data mode
+## Environment variables
 
-By default the dashboard runs on a mock data stream so it demos beautifully
-without needing live Pacifica API access. Control it via:
+Create `apps/pulse/.env.local`:
+
+```bash
+# "testnet" (default) or "mainnet"
+NEXT_PUBLIC_PACIFICA_ENV=testnet
+
+# Set to "true" to force the mock data stream (no API needed)
+NEXT_PUBLIC_USE_MOCK_DATA=false
+
+# Optional: override the whale address list (comma-separated Solana pubkeys)
+NEXT_PUBLIC_WHALE_ADDRESSES=Addr1,Addr2,Addr3
+```
+
+By default the dashboard connects live to `@pacifica-hack/sdk` — no API key
+needed for public endpoints (prices, markets, orderbook). Set
+`NEXT_PUBLIC_USE_MOCK_DATA=true` for a fully offline demo.
+
+## Shareable URLs
+
+The dashboard syncs its state to URL search params so you can share a specific
+view:
 
 ```
-NEXT_PUBLIC_USE_MOCK_DATA=true     # (default) use mock generators
-NEXT_PUBLIC_USE_MOCK_DATA=false    # use real @pacifica-hack/sdk websocket
-NEXT_PUBLIC_PACIFICA_ENV=testnet   # or mainnet
+/?symbol=ETH&env=mainnet
 ```
 
-See `.env.example` and `src/hooks/usePulseStream.ts`. The real-SDK code path
-is stubbed and scheduled for Week 2.
+Both `symbol` and `env` are kept in sync as you interact with the dashboard.
 
 ## Stack
 
@@ -50,9 +66,38 @@ is stubbed and scheduled for Week 2.
 - Lucide icons
 - Dark-mode-only cyberpunk trading-terminal aesthetic
 
-## Architecture notes
+## Architecture
 
-- `src/lib/mock-data.ts` — deterministic-ish mock generators for all panels
-- `src/hooks/usePulseStream.ts` — single entry point for live data; swap mock → real here
-- `src/lib/store.ts` — Zustand store for env, focused symbol, websocket status
-- `src/types/sdk.d.ts` — fallback SDK type declarations (removed once the SDK ships)
+```
+apps/pulse/src/
+├── app/
+│   ├── layout.tsx          – root layout, sets dark class + metadata
+│   └── page.tsx            – dashboard composition (4-panel grid)
+├── components/
+│   ├── Header.tsx          – env toggle, WS status pill, UTC clock
+│   ├── UrlStateSync.tsx    – URL ↔ store bidirectional sync (Suspense wrapper)
+│   └── panels/
+│       ├── MarketsOverviewPanel.tsx
+│       ├── OrderbookImbalancePanel.tsx
+│       ├── WhaleWatcherPanel.tsx
+│       └── FusionSignalsPanel.tsx
+├── hooks/
+│   ├── usePulseStream.ts   – top-level data hook; live or mock path
+│   └── useUrlState.ts      – search-params ↔ Zustand sync
+└── lib/
+    ├── pacifica-bridge.ts  – wraps @pacifica-hack/sdk into domain callbacks
+    ├── pacifica-bridge-types.ts – MarketRow, WhaleEvent, FusionSignal types
+    ├── fusion.ts           – pure signal engine (whale × imbalance)
+    ├── whale-diff.ts       – pure position diff → WhaleEvent
+    ├── whale-addresses.ts  – curated address list, overridable via env
+    ├── mock-data.ts        – deterministic generators + live mock stream
+    ├── store.ts            – Zustand: env, focusedSymbol, wsStatus
+    └── format.ts           – number/time formatters
+```
+
+The live data path:
+
+```
+PacificaWsClient  ──prices/orderbook──►  PacificaBridge  ──callbacks──►  usePulseStream  ──state──►  panels
+PacificaClient    ──REST poll (whales)──►  whale-diff  ──WhaleEvent──►  fusion.ts  ──FusionSignal──►  FusionSignalsPanel
+```

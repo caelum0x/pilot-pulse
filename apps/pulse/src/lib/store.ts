@@ -15,6 +15,10 @@ export interface PulseStore {
 
   lastUpdate: number;
   touchLastUpdate: () => void;
+
+  /** Minimum USD notional before a whale position change becomes an event. */
+  minWhaleSizeUsd: number;
+  setMinWhaleSizeUsd: (n: number) => void;
 }
 
 const initialEnv: PacificaEnv =
@@ -32,4 +36,7 @@ export const usePulseStore = create<PulseStore>((set) => ({
 
   lastUpdate: Date.now(),
   touchLastUpdate: () => set({ lastUpdate: Date.now() }),
+
+  minWhaleSizeUsd: 50_000,
+  setMinWhaleSizeUsd: (minWhaleSizeUsd) => set({ minWhaleSizeUsd }),
 }));

@@ -4,9 +4,17 @@ import { useEffect, useState } from 'react';
 import { ArrowDownRight, ArrowUpRight, Fish } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { formatAddr, formatUsd, timeAgo } from '@/lib/format';
 import type { WhaleEvent, WhaleEventType } from '@/lib/pacifica-bridge-types';
+import { usePulseStore } from '@/lib/store';
 
 interface WhaleWatcherPanelProps {
   events: WhaleEvent[];
@@ -19,6 +27,15 @@ const eventTypeStyle: Record<WhaleEventType, string> = {
   CLOSE: 'text-muted-foreground',
 };
 
+const THRESHOLD_OPTIONS: { label: string; value: number }[] = [
+  { label: '$10K', value: 10_000 },
+  { label: '$50K', value: 50_000 },
+  { label: '$100K', value: 100_000 },
+  { label: '$250K', value: 250_000 },
+  { label: '$500K', value: 500_000 },
+  { label: '$1M', value: 1_000_000 },
+];
+
 export function WhaleWatcherPanel({ events }: WhaleWatcherPanelProps): React.JSX.Element {
   // Re-render every 5s so the "time ago" labels keep ticking
   const [, force] = useState(0);
@@ -27,6 +44,9 @@ export function WhaleWatcherPanel({ events }: WhaleWatcherPanelProps): React.JSX
     return () => clearInterval(t);
   }, []);
 
+  const minWhaleSizeUsd = usePulseStore((s) => s.minWhaleSizeUsd);
+  const setMinWhaleSizeUsd = usePulseStore((s) => s.setMinWhaleSizeUsd);
+
   return (
     <Card className="flex h-full flex-col overflow-hidden">
       <CardHeader>
@@ -34,14 +54,31 @@ export function WhaleWatcherPanel({ events }: WhaleWatcherPanelProps): React.JSX
           <Fish className="h-3.5 w-3.5 text-primary" />
           <CardTitle>Whale Watcher</CardTitle>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[hsl(var(--success))] opacity-60" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[hsl(var(--success))]" />
-          </span>
-          <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
-            live
-          </span>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[hsl(var(--success))] opacity-60" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[hsl(var(--success))]" />
+            </span>
+            <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+              live
+            </span>
+          </div>
+          <Select
+            value={String(minWhaleSizeUsd)}
+            onValueChange={(v) => setMinWhaleSizeUsd(Number(v))}
+          >
+            <SelectTrigger className="h-6 w-[64px] px-1.5 py-0 font-mono text-[9px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {THRESHOLD_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={String(opt.value)}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </CardHeader>
       <CardContent className="flex-1 overflow-auto p-0 scrollbar-thin">

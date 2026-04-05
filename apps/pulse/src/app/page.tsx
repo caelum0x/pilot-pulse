@@ -1,11 +1,13 @@
 'use client';
 
+import { Suspense } from 'react';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Header } from '@/components/Header';
 import { MarketsOverviewPanel } from '@/components/panels/MarketsOverviewPanel';
 import { WhaleWatcherPanel } from '@/components/panels/WhaleWatcherPanel';
 import { OrderbookImbalancePanel } from '@/components/panels/OrderbookImbalancePanel';
 import { FusionSignalsPanel } from '@/components/panels/FusionSignalsPanel';
+import { UrlStateSync } from '@/components/UrlStateSync';
 import { usePulseStream } from '@/hooks/usePulseStream';
 import { usePulseStore } from '@/lib/store';
 
@@ -15,6 +17,10 @@ export default function DashboardPage(): React.JSX.Element {
 
   return (
     <TooltipProvider delayDuration={150}>
+      {/* Sync URL params ↔ Zustand store (Suspense required by Next.js 14) */}
+      <Suspense fallback={null}>
+        <UrlStateSync />
+      </Suspense>
       <main className="flex h-screen flex-col">
         <Header />
         <div className="grid flex-1 min-h-0 gap-3 p-3 lg:grid-cols-12 lg:grid-rows-[minmax(0,1fr)]">

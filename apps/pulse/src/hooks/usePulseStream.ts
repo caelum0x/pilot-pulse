@@ -66,6 +66,7 @@ export function usePulseStream(): PulseStreamState {
   const isLive = useMemo(() => resolveLiveMode(), []);
   const env = usePulseStore((s) => s.env);
   const focusedSymbol = usePulseStore((s) => s.focusedSymbol);
+  const minWhaleSizeUsd = usePulseStore((s) => s.minWhaleSizeUsd);
   const setWsStatus = usePulseStore((s) => s.setWsStatus);
   const touchLastUpdate = usePulseStore((s) => s.touchLastUpdate);
 
@@ -131,6 +132,9 @@ export function usePulseStream(): PulseStreamState {
     setImbalanceHistory([]);
   }, [focusedSymbol]);
 
+  // Keep a ref to the live bridge so we can call setters without recreating it.
+  const bridgeRef = useRef<PacificaBridge | null>(null);
+
   // ── Live mode effect ────────────────────────────────────────────────────
   useEffect(() => {
     if (!isLive) return;
@@ -141,6 +145,7 @@ export function usePulseStream(): PulseStreamState {
         env,
         focusedSymbols: FOCUSED_SYMBOLS,
         whaleAddresses: getWhaleAddresses(),
+        minWhaleSizeUsd,
       },
       {
         onStatus: (status: BridgeStatus) => {
@@ -164,12 +169,23 @@ export function usePulseStream(): PulseStreamState {
       },
     );
 
+    bridgeRef.current = bridge;
     bridge.start();
 
     return () => {
       bridge.stop();
+      bridgeRef.current = null;
     };
+    // minWhaleSizeUsd is intentionally excluded here — we update it via the
+    // bridgeRef effect below to avoid a full reconnect on threshold change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLive, env, handleOrderbook, setWsStatus, touchLastUpdate]);
+
+  // Push threshold changes to the running bridge without reconnecting.
+  useEffect(() => {
+    if (!isLive) return;
+    bridgeRef.current?.setMinWhaleSizeUsd(minWhaleSizeUsd);
+  }, [isLive, minWhaleSizeUsd]);
 
   // ── Mock mode effect ────────────────────────────────────────────────────
   useEffect(() => {
