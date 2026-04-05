@@ -1,24 +1,57 @@
+# ── Environment ───────────────────────────────────────────────────────────────
 .env
 .env.local
 .env.*.local
-.DS_Store
+
+# ── Dependencies ──────────────────────────────────────────────────────────────
 node_modules/
+
+# ── Build outputs ─────────────────────────────────────────────────────────────
 dist/
 build/
-.next/
 out/
+.next/
+*.tsbuildinfo
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
 *.log
+pnpm-debug.log*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Test outputs ──────────────────────────────────────────────────────────────
+coverage/
+test-results/
+playwright-report/
+
+# ── Tooling caches ────────────────────────────────────────────────────────────
+.turbo/
+.cache/
+
+# ── Deployment ────────────────────────────────────────────────────────────────
+.vercel/
+
+# ── OS artefacts ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Python (python-sdk vendor scripts) ───────────────────────────────────────
 .venv/
 __pycache__/
 *.pyc
-.vscode/
-.idea/
-*.tsbuildinfo
-coverage/
+*.pyo
 
-# Vendor — Pacifica upstream repos (we don't commit them into our git)
+# ── Vendor — Pacifica upstream repos (cloned separately, not committed) ───────
 vendor/
 
-# Pilot state snapshot — persisted across restarts, NOT tracked.
+# ── Pilot runtime state (persisted across restarts, never tracked) ────────────
 .pilot-state.json
 .pilot-state.json.tmp
