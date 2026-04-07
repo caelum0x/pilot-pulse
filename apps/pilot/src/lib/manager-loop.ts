@@ -15,6 +15,11 @@
 
 import type { Side } from '@pacifica-hack/sdk';
 import { getBroker } from './broker-factory';
+import {
+  isOnCooldown,
+  recordSuccess,
+  recordFailure,
+} from './circuit-breaker';
 import type { BrokerPosition, PacificaBroker } from './pacifica-broker';
 import { getStore } from './store';
 import type { TpSlManager } from './manager';
@@ -82,8 +87,11 @@ async function tick(): Promise<void> {
 
   const broker = getBroker();
 
+  if (isOnCooldown('broker:positions')) return;
+
   try {
     const positions = await broker.getPositions();
+    recordSuccess('broker:positions');
     const positionsBySymbol = new Map<string, BrokerPosition>();
     for (const p of positions) positionsBySymbol.set(p.symbol, p);
 
@@ -112,6 +120,7 @@ async function tick(): Promise<void> {
 
     s.consecutiveFailures = 0;
   } catch (err) {
+    recordFailure('broker:positions', { maxFailures: 5, cooldownMs: 30_000 });
     s.consecutiveFailures += 1;
     // eslint-disable-next-line no-console
     console.error(

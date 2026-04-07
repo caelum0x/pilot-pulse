@@ -3,6 +3,7 @@ import { verifyHmac } from '@/lib/hmac';
 import { executeAlert } from '@/lib/executor';
 import { alertSchema } from '@/lib/schemas';
 import { config } from '@/lib/config';
+import { checkRateLimit } from '@/lib/rate-limiter';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,6 +17,11 @@ export const dynamic = 'force-dynamic';
  *   Body:   JSON matching `TvAlert`
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+  if (!checkRateLimit(ip, { windowMs: 60_000, limit: 30 })) {
+    return NextResponse.json({ error: 'rate limited' }, { status: 429 });
+  }
+
   const raw = await req.text();
   const sig = req.headers.get('x-pilot-signature');
 

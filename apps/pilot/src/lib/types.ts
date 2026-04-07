@@ -60,6 +60,7 @@ export interface ManagerSnapshot {
   createdAt: number;
   rules: ManagerRules;
   state: ManagerState;
+  closed: boolean;
 }
 
 /** Decision returned from a single `manager.tick()`. */

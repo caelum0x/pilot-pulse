@@ -83,6 +83,7 @@ export class TpSlManager {
       createdAt: this.createdAt,
       rules: { ...this.rules, partials: this.rules.partials?.map((p) => ({ ...p })) },
       state: { ...this.state },
+      closed: this.closed,
     };
   }
 
@@ -114,7 +115,7 @@ export class TpSlManager {
       partials: snap.rules.partials?.map((p) => ({ ...p })),
     };
     writable.state = { ...snap.state };
-    writable.closed = false;
+    writable.closed = snap.closed === true;
     return mgr;
   }
 

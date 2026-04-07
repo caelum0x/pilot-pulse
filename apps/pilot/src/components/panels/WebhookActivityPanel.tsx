@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowDownRight, ArrowUpRight, Inbox, XCircle } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Download, Inbox, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePilotHistory } from '@/hooks/usePilotHistory';
@@ -28,9 +28,21 @@ export function WebhookActivityPanel() {
     <Card className="h-full">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Webhook Activity</CardTitle>
-        <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-          last {events.length}
-        </span>
+        <div className="flex items-center gap-2">
+          {events.length > 0 && (
+            <a
+              href="/api/export?format=csv"
+              download="pilot-history.csv"
+              className="flex items-center gap-1 rounded border border-border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <Download className="h-3 w-3" />
+              CSV
+            </a>
+          )}
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            last {events.length}
+          </span>
+        </div>
       </CardHeader>
       <CardContent className="p-0">
         <div className="scrollbar-thin max-h-[520px] overflow-y-auto">

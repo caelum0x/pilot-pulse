@@ -41,6 +41,7 @@ export function Header() {
   const live = config?.live ?? false;
   const env = config?.env ?? 'testnet';
   const builderCode = config?.builderCode ?? '—';
+  const balance = config?.balance;
 
   return (
     <header className="border-b border-border/70 bg-background/60 backdrop-blur">
@@ -60,6 +61,16 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-3">
+          {balance !== undefined && (
+            <div className="hidden flex-col items-end sm:flex">
+              <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                balance
+              </span>
+              <span className="font-mono text-sm font-semibold text-foreground">
+                {formatUsd(balance)}
+              </span>
+            </div>
+          )}
           <div className="hidden flex-col items-end sm:flex">
             <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
               fees collected

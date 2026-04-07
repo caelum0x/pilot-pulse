@@ -28,15 +28,26 @@ import {
 } from '@pacifica-hack/sdk';
 
 import { diffPositions } from './whale-diff';
+import {
+  isOnCooldown,
+  recordSuccess,
+  recordFailure,
+} from './circuit-breaker';
+import {
+  getPersistentCache,
+  setPersistentCache,
+} from './persistent-cache';
 import type {
   BridgeStatus,
   MarketRow,
+  TradeEvent,
   WhaleEvent,
 } from './pacifica-bridge-types';
 
 export type {
   BridgeStatus,
   MarketRow,
+  TradeEvent,
   WhaleEvent,
 } from './pacifica-bridge-types';
 
@@ -79,6 +90,7 @@ export interface BridgeCallbacks {
   onBbo?: (symbol: string, bbo: BbosSnapshot) => void;
   onPrices?: (prices: Record<string, PriceTick>) => void;
   onWhaleEvent?: (event: WhaleEvent) => void;
+  onTrade?: (trade: TradeEvent) => void;
   onStatus?: (status: BridgeStatus, detail?: string) => void;
 }
 
@@ -158,6 +170,23 @@ function normalizePrices(raw: unknown): Record<string, PriceTick> {
   return out;
 }
 
+function normalizeTrade(symbol: string, raw: unknown): TradeEvent | null {
+  if (!isRecord(raw)) return null;
+  const price = asNumber(raw.price) ?? asNumber(raw.p);
+  const size = asNumber(raw.size) ?? asNumber(raw.amount) ?? asNumber(raw.s);
+  if (price === undefined || size === undefined) return null;
+  const side = (asString(raw.side) ?? 'bid') as 'bid' | 'ask';
+  const timestamp = asNumber(raw.timestamp) ?? asNumber(raw.t) ?? Date.now();
+  return {
+    id: `${symbol}-${timestamp}-${Math.random().toString(36).slice(2, 8)}`,
+    timestamp,
+    symbol,
+    side,
+    price,
+    size,
+  };
+}
+
 // ── MarketInfo + prices → MarketRow join ──────────────────────────────────
 
 function buildMarketRows(
@@ -171,7 +200,7 @@ function buildMarketRows(
     const fundingFromTick = tick ? Number.parseFloat(tick.funding) : NaN;
     const fundingNum = Number.isFinite(fundingFromTick)
       ? fundingFromTick
-      : Number.parseFloat(info.fundingRate);
+      : Number.parseFloat(info.funding_rate);
     const oiNum = tick ? Number.parseFloat(tick.openInterest) : 0;
 
     return {
@@ -180,8 +209,8 @@ function buildMarketRows(
       change24h: Number.isFinite(change24hNum) ? change24hNum : 0,
       fundingRate: Number.isFinite(fundingNum) ? fundingNum : 0,
       openInterestUsd: Number.isFinite(oiNum) ? oiNum : 0,
-      tickSize: info.tickSize,
-      maxLeverage: info.maxLeverage,
+      tickSize: info.tick_size,
+      maxLeverage: info.max_leverage,
     };
   });
 }
@@ -229,6 +258,10 @@ export class PacificaBridge {
     if (this.started) return;
     this.started = true;
     this.callbacks.onStatus?.('connecting');
+
+    // Restore cached market data for instant initial render.
+    this.restoreFromCache();
+
     this.connectWs();
     void this.refreshMarkets();
     this.marketsTimer = setInterval(() => {
@@ -279,6 +312,33 @@ export class PacificaBridge {
     }
   }
 
+  // ── Cache restore (persistent-cache pattern from global-intel) ──────────
+
+  private restoreFromCache(): void {
+    try {
+      const cached = getPersistentCache<{ markets: MarketInfo[]; prices: Record<string, PriceTick> }>('bridge:markets');
+      if (cached) {
+        this.latestMarkets = cached.data.markets;
+        this.latestPrices = cached.data.prices;
+        const rows = buildMarketRows(cached.data.markets, cached.data.prices);
+        this.callbacks.onMarkets?.(rows);
+      }
+    } catch {
+      // Cache miss is fine — live data will arrive shortly.
+    }
+  }
+
+  private persistToCache(): void {
+    try {
+      setPersistentCache('bridge:markets', {
+        markets: this.latestMarkets,
+        prices: this.latestPrices,
+      });
+    } catch {
+      // Best-effort — ignore quota errors.
+    }
+  }
+
   // ── WebSocket wiring ────────────────────────────────────────────────────
 
   private connectWs(): void {
@@ -318,6 +378,12 @@ export class PacificaBridge {
           this.callbacks.onBbo?.(symbol, normalized);
         }
       });
+      client.on('trades', (symbol: string, tradePayload: unknown) => {
+        const trade = normalizeTrade(symbol, tradePayload);
+        if (trade) {
+          this.callbacks.onTrade?.(trade);
+        }
+      });
     } catch (err: unknown) {
       this.reportError('Failed to construct PacificaWsClient', err);
       this.callbacks.onStatus?.('error', 'ws_construct_failed');
@@ -341,6 +407,7 @@ export class PacificaBridge {
     try {
       this.ws.subscribeOrderbook(symbol);
       this.ws.subscribeBbo(symbol);
+      this.ws.subscribeTrades(symbol);
     } catch (err: unknown) {
       this.reportError(`subscribe(${symbol}) failed`, err);
     }
@@ -349,42 +416,36 @@ export class PacificaBridge {
   // ── REST polling loops ──────────────────────────────────────────────────
 
   private async refreshMarkets(): Promise<void> {
-    try {
-      const markets = await this.restClient.getMarketInfo();
-      this.latestMarkets = markets;
-      // Try to merge with latest prices — if absent, still emit skeleton rows
-      // so the UI can render while awaiting the first WS price tick.
-      const rows = buildMarketRows(markets, this.latestPrices);
-      this.callbacks.onMarkets?.(rows);
-    } catch (err: unknown) {
-      this.reportError('getMarketInfo failed', err);
-    }
+    if (isOnCooldown('markets')) return;
 
     try {
-      const pricesRaw = await this.restClient.getPrices();
-      const prices = normalizePrices(pricesRaw);
-      if (Object.keys(prices).length > 0) {
-        this.latestPrices = { ...this.latestPrices, ...prices };
-        this.callbacks.onPrices?.(this.latestPrices);
-        if (this.latestMarkets.length > 0) {
-          this.callbacks.onMarkets?.(
-            buildMarketRows(this.latestMarkets, this.latestPrices),
-          );
-        }
-      }
+      const markets = await this.restClient.getMarketInfo();
+      recordSuccess('markets');
+      this.latestMarkets = markets;
+      // Market info includes funding_rate per symbol. Live mark prices
+      // arrive via the WS `prices` channel — the REST call gives us the
+      // static spec + funding data while WS fills in real-time prices.
+      const rows = buildMarketRows(markets, this.latestPrices);
+      this.callbacks.onMarkets?.(rows);
+      this.persistToCache();
     } catch (err: unknown) {
-      this.reportError('getPrices failed', err);
+      recordFailure('markets', { maxFailures: 3, cooldownMs: 30_000 });
+      this.reportError('getMarketInfo failed', err);
     }
   }
 
   private async pollWhales(): Promise<void> {
     for (const address of this.config.whaleAddresses) {
+      const breakerId = `whale:${address}`;
+      if (isOnCooldown(breakerId)) continue;
+
       try {
         const readOnlyClient = new PacificaClient({
           env: this.config.env,
           address,
         });
         const positions = await readOnlyClient.getPositions();
+        recordSuccess(breakerId);
         const previous = this.whalePositionSnapshots.get(address) ?? null;
         const events = diffPositions(address, previous, positions, Date.now(), {
           minSizeUsd: this.config.minWhaleSizeUsd,
@@ -394,6 +455,7 @@ export class PacificaBridge {
         }
         this.whalePositionSnapshots.set(address, positions);
       } catch (err: unknown) {
+        recordFailure(breakerId, { maxFailures: 3, cooldownMs: 60_000 });
         this.reportError(`pollWhales(${address}) failed`, err);
       }
     }

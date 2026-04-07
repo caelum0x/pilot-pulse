@@ -54,3 +54,15 @@ export interface FusionSignal {
   description: string;
   confidence: SignalConfidence;
 }
+
+/**
+ * A single trade event from the Pacifica trades WebSocket channel.
+ */
+export interface TradeEvent {
+  id: string;
+  timestamp: number;
+  symbol: string;
+  side: 'bid' | 'ask';
+  price: number;
+  size: number;
+}

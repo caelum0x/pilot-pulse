@@ -1,4 +1,12 @@
 import type { OrderbookSnapshot } from '@pacifica-hack/sdk';
+import type {
+  FusionSignal,
+  MarketRow,
+  SignalConfidence,
+  WhaleEvent,
+  WhaleEventType,
+  WhaleSide,
+} from './pacifica-bridge-types';
 
 /**
  * Mock data generators for PacificaPulse v1.
@@ -7,44 +15,6 @@ import type { OrderbookSnapshot } from '@pacifica-hack/sdk';
  *
  * All functions are pure (except the stream starter which owns intervals).
  */
-
-// ── Domain types used only on the dashboard side ──────────────────────────
-
-export interface MarketRow {
-  symbol: string;
-  price: number;
-  change24h: number; // percent, e.g. +2.31
-  fundingRate: number; // percent, e.g. 0.01
-  openInterestUsd: number;
-  tickSize: string;
-  maxLeverage: number;
-}
-
-export type WhaleDirection = 'LONG' | 'SHORT';
-export type WhaleEventType = 'OPEN' | 'ADD' | 'REDUCE' | 'CLOSE';
-
-export interface WhaleEvent {
-  id: string;
-  timestamp: number;
-  symbol: string;
-  direction: WhaleDirection;
-  sizeUsd: number;
-  eventType: WhaleEventType;
-  address: string;
-  price: number;
-}
-
-export type SignalConfidence = 'HIGH' | 'MED' | 'LOW';
-
-export interface FusionSignal {
-  id: string;
-  timestamp: number;
-  symbol: string;
-  direction: WhaleDirection;
-  headline: string;
-  description: string;
-  confidence: SignalConfidence;
-}
 
 // ── Seedable PRNG ─────────────────────────────────────────────────────────
 
@@ -137,7 +107,7 @@ function uid(): string {
 
 export function generateMockWhaleEvent(): WhaleEvent {
   const market = pick(MARKET_SEED);
-  const direction: WhaleDirection = rand() > 0.48 ? 'LONG' : 'SHORT';
+  const side: WhaleSide = rand() > 0.48 ? 'LONG' : 'SHORT';
   const eventType: WhaleEventType = weighted<WhaleEventType>([
     ['OPEN', 5],
     ['ADD', 3],
@@ -151,11 +121,11 @@ export function generateMockWhaleEvent(): WhaleEvent {
     id: uid(),
     timestamp: Date.now(),
     symbol: market.symbol,
-    direction,
+    side,
     sizeUsd,
     eventType,
     address: pick(FAKE_ADDRS),
-    price,
+    entryPrice: price.toFixed(8),
   };
 }
 
@@ -219,7 +189,7 @@ export function computeImbalance(ob: OrderbookSnapshot): {
 
 // ── Fusion signals ────────────────────────────────────────────────────────
 
-const SIGNAL_TEMPLATES: Array<(sym: string, dir: WhaleDirection, usd: number, imb: number) => {
+const SIGNAL_TEMPLATES: Array<(sym: string, dir: WhaleSide, usd: number, imb: number) => {
   headline: string;
   description: string;
 }> = [
@@ -253,7 +223,7 @@ function formatUsdShort(n: number): string {
 
 export function generateMockFusionSignal(): FusionSignal {
   const market = pick(MARKET_SEED);
-  const direction: WhaleDirection = rand() > 0.5 ? 'LONG' : 'SHORT';
+  const direction: WhaleSide = rand() > 0.5 ? 'LONG' : 'SHORT';
   const usd = Math.exp(Math.log(300_000) + rand() * Math.log(30));
   const imb = (rand() - 0.5) * 1.4; // -0.7 .. +0.7
   const confidence: SignalConfidence = weighted<SignalConfidence>([

@@ -23,11 +23,12 @@ function rulesToChips(rules: ManagerRules): string[] {
   return chips;
 }
 
-async function deleteManager(id: string): Promise<void> {
-  await fetch(`/api/managers?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+async function deleteManager(id: string): Promise<boolean> {
+  const res = await fetch(`/api/managers?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+  return res.ok;
 }
 
-function ManagerCard({ snapshot, onDelete }: { snapshot: ManagerSnapshot; onDelete: () => void }) {
+function ManagerCard({ snapshot, onDelete }: { snapshot: ManagerSnapshot; onDelete: () => Promise<void> }) {
   const chips = rulesToChips(snapshot.rules);
   const stopLevel = snapshot.state.stopLevel;
   return (

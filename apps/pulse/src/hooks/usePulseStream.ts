@@ -8,6 +8,7 @@ import { PacificaBridge } from '@/lib/pacifica-bridge';
 import type {
   BridgeStatus,
   MarketRow,
+  TradeEvent,
   WhaleEvent,
 } from '@/lib/pacifica-bridge-types';
 import { computeFusionSignals } from '@/lib/fusion';
@@ -24,6 +25,7 @@ import {
 
 const FOCUSED_SYMBOLS: readonly string[] = ['BTC', 'ETH', 'SOL', 'HYPE', 'WIF'];
 const MAX_WHALE_EVENTS = 100;
+const MAX_TRADES = 200;
 const MAX_SIGNALS = 20;
 const MAX_IMBALANCE_POINTS = 120;
 
@@ -36,6 +38,7 @@ export interface ImbalancePoint {
 export interface PulseStreamState {
   markets: MarketRow[];
   whaleEvents: WhaleEvent[];
+  trades: TradeEvent[];
   fusionSignals: FusionSignal[];
   orderbook: OrderbookSnapshot | null;
   orderbookBySymbol: Record<string, OrderbookSnapshot>;
@@ -82,10 +85,12 @@ export function usePulseStream(): PulseStreamState {
     isLive ? [] : generateMockMarkets(),
   );
   const [whaleEvents, setWhaleEvents] = useState<WhaleEvent[]>(() =>
-    isLive ? [] : (generateInitialWhaleEvents(14) as unknown as WhaleEvent[]),
+    isLive ? [] : generateInitialWhaleEvents(14),
   );
+
+  const [trades, setTrades] = useState<TradeEvent[]>([]);
   const [fusionSignals, setFusionSignals] = useState<FusionSignal[]>(() =>
-    isLive ? [] : (generateInitialFusionSignals(6) as unknown as FusionSignal[]),
+    isLive ? [] : generateInitialFusionSignals(6),
   );
   const [orderbookBySymbol, setOrderbookBySymbol] = useState<Record<string, OrderbookSnapshot>>(
     () => {
@@ -166,6 +171,14 @@ export function usePulseStream(): PulseStreamState {
           });
           touchLastUpdate();
         },
+        onTrade: (trade) => {
+          setTrades((prev) => {
+            const next = [trade, ...prev];
+            if (next.length > MAX_TRADES) next.length = MAX_TRADES;
+            return next;
+          });
+          touchLastUpdate();
+        },
       },
     );
 
@@ -201,20 +214,8 @@ export function usePulseStream(): PulseStreamState {
         touchLastUpdate();
       },
       onWhaleEvent: (ev) => {
-        // The mock module emits its own WhaleEvent shape — map it to the
-        // canonical bridge shape so downstream code has one type.
-        const mapped: WhaleEvent = {
-          id: ev.id,
-          timestamp: ev.timestamp,
-          address: ev.address,
-          symbol: ev.symbol,
-          side: ev.direction,
-          eventType: ev.eventType,
-          sizeUsd: ev.sizeUsd,
-          entryPrice: String(ev.price),
-        };
         setWhaleEvents((prev) => {
-          const next = [mapped, ...prev];
+          const next = [ev, ...prev];
           if (next.length > MAX_WHALE_EVENTS) next.length = MAX_WHALE_EVENTS;
           return next;
         });
@@ -224,17 +225,8 @@ export function usePulseStream(): PulseStreamState {
         handleOrderbook(ob);
       },
       onFusionSignal: (sig) => {
-        const mapped: FusionSignal = {
-          id: sig.id,
-          timestamp: sig.timestamp,
-          symbol: sig.symbol,
-          direction: sig.direction,
-          confidence: sig.confidence,
-          headline: sig.headline,
-          description: sig.description,
-        };
         setFusionSignals((prev) => {
-          const next = [mapped, ...prev];
+          const next = [sig, ...prev];
           if (next.length > MAX_SIGNALS) next.length = MAX_SIGNALS;
           return next;
         });
@@ -262,6 +254,7 @@ export function usePulseStream(): PulseStreamState {
   return {
     markets,
     whaleEvents,
+    trades,
     fusionSignals,
     orderbook,
     orderbookBySymbol,

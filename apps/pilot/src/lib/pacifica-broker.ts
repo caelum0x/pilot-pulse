@@ -124,11 +124,6 @@ function roundBaseAmount(amount: number): number {
 // Live broker (real PacificaClient)
 // ============================================================
 
-interface PriceRecord {
-  symbol: string;
-  mark: number;
-}
-
 /**
  * Live broker backed by the real Pacifica REST API via `@pacifica-hack/sdk`.
  *
@@ -286,42 +281,24 @@ export class LivePacificaBroker implements PacificaBroker {
     ) {
       return this.priceCache.byMarket;
     }
-    const raw = await this.client.getPrices();
-    const parsed = this.parsePricesResponse(raw);
-    this.priceCache = { fetchedAt: now, byMarket: parsed };
-    return parsed;
-  }
-
-  private parsePricesResponse(raw: unknown): Map<string, number> {
-    const out = new Map<string, number>();
-    const records = this.extractPriceRecords(raw);
-    for (const rec of records) {
-      out.set(rec.symbol.toUpperCase(), rec.mark);
+    // The Pacifica REST API does not have a standalone prices endpoint.
+    // We derive mid-prices from the orderbook for each needed symbol.
+    // For the full list of symbols, fetch market info once.
+    const markets = await this.client.getMarketInfo();
+    const byMarket = new Map<string, number>();
+    for (const m of markets) {
+      try {
+        const ob = await this.client.getOrderbook(m.symbol);
+        const bestBid = ob.bids[0] ? parseFloatOr(ob.bids[0].price, 0) : 0;
+        const bestAsk = ob.asks[0] ? parseFloatOr(ob.asks[0].price, 0) : 0;
+        const mid = bestBid && bestAsk ? (bestBid + bestAsk) / 2 : bestBid || bestAsk;
+        if (mid > 0) byMarket.set(m.symbol.toUpperCase(), mid);
+      } catch {
+        // Skip symbols with no orderbook data.
+      }
     }
-    return out;
-  }
-
-  private extractPriceRecords(raw: unknown): PriceRecord[] {
-    if (!Array.isArray(raw)) return [];
-    const records: PriceRecord[] = [];
-    for (const entry of raw) {
-      if (typeof entry !== 'object' || entry === null) continue;
-      const obj = entry as Record<string, unknown>;
-      const symbol =
-        typeof obj.symbol === 'string'
-          ? obj.symbol
-          : typeof obj.market === 'string'
-            ? obj.market
-            : undefined;
-      if (!symbol) continue;
-      const mark = parseFloatOr(
-        obj.mark ?? obj.mark_price ?? obj.oracle ?? obj.mid ?? obj.price,
-        Number.NaN,
-      );
-      if (!Number.isFinite(mark) || mark <= 0) continue;
-      records.push({ symbol, mark });
-    }
-    return records;
+    this.priceCache = { fetchedAt: now, byMarket };
+    return byMarket;
   }
 }
 

@@ -21,12 +21,17 @@ export type OrderType = 'limit' | 'market' | 'stop';
 
 export interface MarketInfo {
   symbol: string;
-  maxLeverage: number;
-  minOrderSize: string;
-  maxOrderSize: string;
-  tickSize: string;
-  isolatedOnly: boolean;
-  fundingRate: string;
+  max_leverage: number;
+  min_order_size: string;
+  max_order_size: string;
+  tick_size: string;
+  lot_size: string;
+  isolated_only: boolean;
+  funding_rate: string;
+  next_funding_rate: string;
+  instrument_type: string;
+  base_asset: string;
+  created_at: number;
 }
 
 export interface Position {

@@ -21,6 +21,7 @@ import { PacificaEnv, PACIFICA_URLS } from './env.js';
 import { PacificaError, PacificaSigningError } from './errors.js';
 import { runBatchOrders } from './rest-batch.js';
 import { createSubaccountSoftware } from './rest-subaccount.js';
+import { createSubaccountHardwareFlow } from './rest-subaccount-hardware.js';
 import {
   buildSignedRequestHeader,
   handleResponse,
@@ -165,11 +166,14 @@ export class PacificaClient {
   // ============================================================
 
   getMarketInfo(): Promise<MarketInfo[]> {
-    return this.getJson<MarketInfo[]>('/markets/info');
+    return this.getJson<MarketInfo[]>('/info');
   }
 
   getPrices(): Promise<unknown> {
-    return this.getJson<unknown>('/markets/prices');
+    // No standalone prices endpoint — market info includes funding_rate.
+    // Live prices come via WebSocket `prices` channel. This falls back to
+    // returning market info as-is so callers can extract funding/OI data.
+    return this.getJson<unknown>('/info');
   }
 
   getCandles(
@@ -186,19 +190,37 @@ export class PacificaClient {
     if (endTime !== undefined) {
       params.end_time = endTime;
     }
-    return this.getJson<unknown>('/markets/candles', params);
+    return this.getJson<unknown>('/kline', params);
   }
 
-  getOrderbook(symbol: string): Promise<OrderbookSnapshot> {
-    return this.getJson<OrderbookSnapshot>('/markets/orderbook', { symbol });
+  /**
+   * Fetch orderbook for a symbol. The raw API returns `{ s, l: [bids[], asks[]], t }`
+   * which we normalize into the SDK's `OrderbookSnapshot` shape.
+   */
+  async getOrderbook(symbol: string): Promise<OrderbookSnapshot> {
+    const raw = await this.getJson<{
+      s: string;
+      l: Array<Array<{ p: string; a: string; n: number }>>;
+      t: number;
+    }>('/book', { symbol });
+    const [rawBids = [], rawAsks = []] = raw.l;
+    return {
+      symbol: raw.s,
+      bids: rawBids.map((b) => ({ price: b.p, size: b.a })),
+      asks: rawAsks.map((a) => ({ price: a.p, size: a.a })),
+      timestamp: raw.t,
+    };
   }
 
   getRecentTrades(symbol: string): Promise<unknown> {
-    return this.getJson<unknown>('/markets/trades', { symbol });
+    return this.getJson<unknown>('/trades', { symbol });
   }
 
   getHistoricalFunding(symbol: string): Promise<unknown> {
-    return this.getJson<unknown>('/markets/historical-funding', { symbol });
+    return this.getJson<unknown>('/funding/history', {
+      account: this.requireAddress(),
+      symbol,
+    });
   }
 
   // ============================================================

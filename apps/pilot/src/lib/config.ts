@@ -44,6 +44,8 @@ export interface PublicPilotConfig {
     degraded: boolean;
     degradeReason?: string;
   };
+  /** Account balance in USD. Populated by `/api/config` route handler. */
+  balance?: number;
 }
 
 export function getPublicConfig(): PublicPilotConfig {

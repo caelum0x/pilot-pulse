@@ -1,5 +1,6 @@
 'use client';
 
+import { useCallback, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -15,16 +16,44 @@ import { formatPct, formatPrice, formatUsd } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 export function PositionsPanel() {
-  const { data, isLoading } = usePositions();
+  const { data, isLoading, mutate } = usePositions();
   const rows = data?.positions ?? [];
+  const [cancelling, setCancelling] = useState(false);
+
+  const handleCancelAll = useCallback(async () => {
+    setCancelling(true);
+    try {
+      const res = await fetch('/api/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      if (res.ok) {
+        void mutate();
+      }
+    } finally {
+      setCancelling(false);
+    }
+  }, [mutate]);
 
   return (
     <Card className="h-full">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Active Positions</CardTitle>
-        <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-          {rows.length} open
-        </span>
+        <div className="flex items-center gap-2">
+          {rows.length > 0 && (
+            <button
+              onClick={handleCancelAll}
+              disabled={cancelling}
+              className="rounded border border-destructive/40 bg-destructive/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-destructive transition-colors hover:bg-destructive/20 disabled:opacity-50"
+            >
+              {cancelling ? 'cancelling…' : 'cancel all orders'}
+            </button>
+          )}
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            {rows.length} open
+          </span>
+        </div>
       </CardHeader>
       <CardContent className="p-0">
         <div className="scrollbar-thin max-h-[260px] overflow-y-auto">
